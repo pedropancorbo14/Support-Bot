@@ -33,3 +33,9 @@ curl http://localhost:8000/health
 ```
 
 `/health` responde `200` si la base de datos y Ollama contestan, y `503` si alguno falla.
+
+## Integración continua
+
+`.github/workflows/ci.yml` se ejecuta en cada push y en cada pull request. Levanta
+`pgvector/pgvector:pg17`, instala dependencias con `uv sync --frozen`, comprueba formato
+y lint con Ruff, aplica las migraciones y lanza `pytest`.

@@ -63,7 +63,8 @@ y tener las migraciones aplicadas (`DATABASE_URL=<esa url> uv run alembic upgrad
   `httpx.ASGITransport` dentro de `app.router.lifespan_context(app)`.
 - Migraciones Alembic con ids secuenciales (`0001`, `0002`…). Configuración en
   `[tool.alembic]` de `pyproject.toml` (no hay `alembic.ini`).
-- Ruff (`line-length = 100`) debe pasar antes de cada commit.
+- Ruff (`line-length = 100`) debe pasar antes de cada commit. El CI
+  (`.github/workflows/ci.yml`) ejecuta Ruff, las migraciones y pytest en cada push y PR.
 - Commits en español, descriptivos. Fase terminada = tests en verde + docs actualizadas.
 
 ## Estado
