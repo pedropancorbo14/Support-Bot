@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api import health
+from app.api import admin, health
 from app.config import Settings, get_settings
 from app.db import create_engine, create_sessionmaker
 from app.llm import LlmClient, OpenAICompatibleClient
@@ -26,6 +26,7 @@ def create_app(settings: Settings | None = None, llm: LlmClient | None = None) -
 
     app = FastAPI(title="Support Bot", version="0.1.0", lifespan=lifespan)
     app.include_router(health.router)
+    app.include_router(admin.router)
     return app
 
 

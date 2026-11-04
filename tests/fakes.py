@@ -21,6 +21,7 @@ class FakeLlmClient:
         self.fail = fail
         self.healthy = healthy
         self.calls: list[list[ChatMessage]] = []
+        self.embedded: list[str] = []
 
     def _next_reply(self, messages: Sequence[ChatMessage]) -> str:
         if self.fail:
@@ -43,6 +44,7 @@ class FakeLlmClient:
     async def embed(self, texts: Sequence[str]) -> list[list[float]]:
         if self.fail:
             raise LlmError("fallo simulado")
+        self.embedded.extend(texts)
         return [self._vector(text) for text in texts]
 
     async def ping(self) -> bool:

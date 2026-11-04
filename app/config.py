@@ -1,6 +1,7 @@
 from functools import lru_cache
+from typing import Self
 
-from pydantic import Field, PostgresDsn, SecretStr
+from pydantic import Field, PostgresDsn, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -21,6 +22,24 @@ class Settings(BaseSettings):
     llm_num_ctx: int = Field(default=8192, gt=0)
     llm_timeout: float = Field(default=60.0, gt=0)
     llm_reasoning_effort: str | None = None
+
+    embedding_dimensions: int = Field(default=768, gt=0)
+    embedding_document_prefix: str = "search_document: "
+    embedding_query_prefix: str = "search_query: "
+
+    chunk_size_tokens: int = Field(default=500, gt=0)
+    chunk_overlap_tokens: int = Field(default=50, ge=0)
+
+    rag_top_k: int = Field(default=4, gt=0)
+    rag_min_score: float = Field(default=0.5, ge=-1, le=1)
+
+    worker_poll_interval: float = Field(default=2.0, gt=0)
+
+    @model_validator(mode="after")
+    def _check_chunking(self) -> Self:
+        if self.chunk_overlap_tokens >= self.chunk_size_tokens:
+            raise ValueError("CHUNK_OVERLAP_TOKENS debe ser menor que CHUNK_SIZE_TOKENS")
+        return self
 
 
 @lru_cache

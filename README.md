@@ -14,6 +14,7 @@ docker compose up -d --build
 docker compose exec ollama-nvidia ollama pull qwen3:8b
 docker compose exec ollama-nvidia ollama pull nomic-embed-text
 curl http://localhost:8000/health
+docker compose run --rm api python -m app.cli create-app --slug mi-app --name "Mi App"
 ```
 
 ## Desarrollo
@@ -28,4 +29,6 @@ uv run pytest -q
 - [Arquitectura](docs/arquitectura.md)
 - [Configuración](docs/configuracion.md)
 - [Cliente LLM](docs/cliente-llm.md)
+- [Ingesta y recuperación (RAG)](docs/rag.md)
+- [API administrativa](docs/api-admin.md)
 - [Despliegue](docs/despliegue.md)

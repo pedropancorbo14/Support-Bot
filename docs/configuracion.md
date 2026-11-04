@@ -26,6 +26,15 @@ La referencia comentada está en `.env.example`.
 | `LLM_TIMEOUT` | `60` | Timeout por petición al LLM, en segundos. |
 | `LLM_REASONING_EFFORT` | vacío | Si tiene valor, se envía como `reasoning_effort`. `none` desactiva el razonamiento de qwen3 y reduce la latencia. |
 
+| `EMBEDDING_DIMENSIONS` | `768` | Dimensión del vector. Se fija en la migración `0002`; cambiarla exige migración nueva y reindexar. |
+| `EMBEDDING_DOCUMENT_PREFIX` | `search_document: ` | Prefijo al embeber chunks (recomendado por `nomic-embed-text`). |
+| `EMBEDDING_QUERY_PREFIX` | `search_query: ` | Prefijo al embeber la pregunta del usuario. |
+| `CHUNK_SIZE_TOKENS` | `500` | Tamaño máximo de cada chunk. |
+| `CHUNK_OVERLAP_TOKENS` | `50` | Solape entre chunks consecutivos de la misma sección. Debe ser menor que el tamaño. |
+| `RAG_TOP_K` | `4` | Fragmentos recuperados por pregunta. |
+| `RAG_MIN_SCORE` | `0.5` | Similitud de coseno mínima (0–1). Ajústala con la evaluación (fase 5). |
+| `WORKER_POLL_INTERVAL` | `2` | Segundos entre sondeos del worker cuando no hay trabajo. Es también el primer intervalo del backoff ante fallos (se duplica hasta 60 s). |
+
 ### Por qué `num_ctx` va por variable de entorno de Ollama
 
 La API compatible con OpenAI no tiene un parámetro para el tamaño de contexto, así que se

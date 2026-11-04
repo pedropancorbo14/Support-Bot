@@ -5,6 +5,7 @@ lo implementa contra cualquier API compatible con OpenAI (Ollama en producción)
 """
 
 import json
+import math
 from collections.abc import AsyncIterator, Sequence
 from dataclasses import dataclass
 from typing import Literal, Protocol, Self, TypedDict
@@ -29,6 +30,15 @@ class Usage:
 class ChatResult:
     content: str
     usage: Usage
+
+
+def estimate_tokens(text: str) -> int:
+    """Estimación barata (≈4 caracteres por token).
+
+    Sirve para trocear y presupuestar el prompt. Los tokens reales de cada respuesta se
+    registran a partir del `usage` que devuelve el proveedor.
+    """
+    return math.ceil(len(text) / 4)
 
 
 class LlmError(Exception):
