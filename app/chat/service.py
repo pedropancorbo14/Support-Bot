@@ -410,9 +410,23 @@ class ChatService:
             latency_ms=_elapsed_ms(started),
             ttft_ms=ttft_ms,
             retrieved_chunks=[_chunk_record(chunk) for chunk in chunks],
+            context=format_context(chunks),
             flags=list(flags),
         )
         self._session.add(message)
+        # Una línea por respuesta, fácil de agregar en cualquier sistema de logs.
+        logger.info(
+            "respuesta conversation=%s latency_ms=%s ttft_ms=%s prompt_tokens=%s "
+            "completion_tokens=%s chunks=%d top_score=%s flags=%s",
+            conversation.id,
+            message.latency_ms,
+            ttft_ms,
+            message.prompt_tokens,
+            message.completion_tokens,
+            len(chunks),
+            f"{chunks[0].score:.3f}" if chunks else None,
+            ",".join(flags) or "-",
+        )
         return message
 
     def _conversation_url(self, conversation_id: uuid.UUID) -> str:

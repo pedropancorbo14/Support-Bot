@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, Response, status
@@ -9,6 +9,7 @@ from sqlalchemy import select
 from app.auth import CurrentApp
 from app.chat.service import ChatService, ConversationStateError, get_chat_service
 from app.db import DbSession
+from app.metrics import compute_metrics
 from app.models import Conversation, ConversationKind, ConversationStatus, Message
 from app.rag.ingest import IngestStatus, delete_document, upsert_document
 
@@ -189,3 +190,28 @@ async def close_conversation(
     except ConversationStateError as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from None
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# -- Métricas ----------------------------------------------------------------------------
+
+
+@router.get("/metrics")
+async def metrics(
+    client_app: CurrentApp,
+    session: DbSession,
+    since: Annotated[
+        datetime | None, Query(description="Inicio (ISO 8601). Por defecto, hace 30 días.")
+    ] = None,
+    until: Annotated[
+        datetime | None, Query(description="Fin (ISO 8601, excluido). Por defecto, ahora.")
+    ] = None,
+) -> dict[str, Any]:
+    """Métricas agregadas de la app: conversaciones, escalados, latencias, tokens, falta de
+    documentación, errores del LLM, valoraciones y webhooks."""
+    until = until or datetime.now(UTC)
+    since = since or until - timedelta(days=30)
+    if since >= until:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, detail="since debe ser anterior a until"
+        )
+    return await compute_metrics(session, client_app.id, since, until)

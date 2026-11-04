@@ -101,3 +101,11 @@ Respuesta `201` con el mensaje creado (`role: "agent"`).
 El agente cierra la conversación humana. Devuelve `204`, o `409` si no es humana o ya
 estaba cerrada. Cuando el usuario vuelva al widget, empezará una conversación nueva con
 el bot.
+
+## `GET /admin/metrics`
+
+Métricas agregadas de la app: conversaciones, escalados, latencias (media, p50 y p95),
+tiempo hasta el primer token, tokens, falta de documentación, errores del LLM,
+valoraciones y estado de los webhooks. Por defecto cubre los últimos 30 días; se puede
+acotar con `?since=` y `?until=` (ISO 8601). Detalle de cada campo en
+[observabilidad](observabilidad.md).

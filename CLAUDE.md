@@ -30,7 +30,7 @@ las decisiones están en `docs/arquitectura.md`.
   2. `fase-2-ingesta-documentacion-y-recuperacion-rag` ✅
   3. `fase-3-conversaciones-prompt-escalado-webhooks` ✅
   4. `fase-4-autenticacion-jwt-api-streaming-widget` ✅
-  5. `fase-5-observabilidad-exportacion-evaluacion-readme`
+  5. `fase-5-observabilidad-exportacion-evaluacion-readme` ✅
 - Documentar todo lo que se haga en `docs/` (y mantener este fichero al día).
 - Idioma: código e identificadores en inglés; documentación, mensajes al usuario y
   docstrings en español.
@@ -87,6 +87,13 @@ y tener las migraciones aplicadas (`DATABASE_URL=<esa url> uv run alembic upgrad
   internos (tokens, chunks, flags, `raw_content`).
 - `static/widget.js`: JS sin dependencias ni build, Shadow DOM, SSE con `fetch`. Probar
   cambios con Playwright (Chromium preinstalado) contra el servicio con `FakeLlmClient`.
+- Cada respuesta guarda `messages.context` (documentación literal inyectada): el dataset
+  depende de ello. No eliminarlo.
+- La evaluación (`app/evaluation.py`) corre en una transacción con
+  `join_transaction_mode="create_savepoint"` que se deshace: no debe dejar datos ni webhooks.
+- `docs/integracion-laravel.md` contiene código Laravel probado de punta a punta (Laravel 12
+  real + servicio + worker + Playwright). Si cambia el contrato (JWT, firma, endpoints),
+  actualizarlo y volver a probarlo.
 - Tokens estimados con `app.llm.estimate_tokens` (≈4 caracteres/token). Los reales salen del `usage`.
 - Tests asíncronos con `pytest.mark.anyio` (sin pytest-asyncio). Cliente HTTP con
   `httpx.ASGITransport` dentro de `app.router.lifespan_context(app)`.
@@ -115,7 +122,9 @@ y tener las migraciones aplicadas (`DATABASE_URL=<esa url> uv run alembic upgrad
   tiempo real con sondeo), escalado desde el widget, valoración 👍/👎, rate limit por
   usuario e IP en Redis (fail-open), CORS por app, `/health` con Redis, `widget.js`
   (verificado en Chromium), CLI con `--allowed-origin` y rotación de secretos.
-- Pendiente para la fase 5: métricas (`/admin/metrics`), exportación JSONL para Unsloth,
-  evaluación (fichero de casos + comando con informe), README de integración y código
-  Laravel (emitir JWT, endpoint de token, cargar widget, verificar webhook).
+- **Fase 5 (hecha):** `GET /admin/metrics` (agregados por app y periodo), línea de log por
+  respuesta y `LOG_LEVEL`, `messages.context`, CLI `export-dataset` (JSONL chat para
+  Unsloth con contexto RAG en el mensaje de usuario) y `evaluate` (`eval/cases.toml`,
+  informe, `--min-accuracy`, sin efectos secundarios), README completo y guía de
+  integración Laravel verificada.
 - Pendiente del usuario: el texto de `prompts/system.md`.

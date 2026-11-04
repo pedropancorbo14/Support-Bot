@@ -79,6 +79,15 @@ class SystemPrompt:
         return _PLACEHOLDER.sub(lambda match: values[match.group(1)], self.template)
 
 
+def user_section(user: EndUser) -> str:
+    return (
+        "## Datos del usuario\n"
+        f"- Nombre: {user.name or UNKNOWN}\n"
+        f"- Plan: {user.plan or UNKNOWN}\n"
+        f"- Idioma: {user.locale or UNKNOWN}"
+    )
+
+
 def build_messages(
     *,
     system_prompt: str,
@@ -88,14 +97,7 @@ def build_messages(
     history: Sequence[HistoryMessage],
     question: str,
 ) -> list[ChatMessage]:
-    sections = [
-        system_prompt,
-        "## Datos del usuario\n"
-        f"- Nombre: {user.name or UNKNOWN}\n"
-        f"- Plan: {user.plan or UNKNOWN}\n"
-        f"- Idioma: {user.locale or UNKNOWN}",
-        f"## Documentación\n{context}",
-    ]
+    sections = [system_prompt, user_section(user), f"## Documentación\n{context}"]
     if summary:
         sections.append(f"## Resumen de la conversación anterior\n{summary}")
     messages: list[ChatMessage] = [

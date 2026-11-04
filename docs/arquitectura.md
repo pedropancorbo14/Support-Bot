@@ -63,6 +63,9 @@ La app se identifica por la API key (llamadas administrativas) o por el JWT (wid
 | `cors.py` | CORS con los orígenes de cada app | 4 |
 | `api/widget.py` | Endpoints `/v1` (SSE) y `/widget.js` | 4 |
 | `static/widget.js` | Widget embebible (Shadow DOM, sin dependencias) | 4 |
+| `metrics.py` | Agregados para `GET /admin/metrics` | 5 |
+| `dataset.py` | Exportación JSONL para fine-tuning | 5 |
+| `evaluation.py` | Evaluación con `eval/cases.toml` | 5 |
 
 La tabla se amplía en cada fase.
 

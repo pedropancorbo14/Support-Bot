@@ -16,6 +16,7 @@ La referencia comentada está en `.env.example`.
 
 | Variable | Por defecto | Descripción |
 |---|---|---|
+| `LOG_LEVEL` | `INFO` | Nivel de log de la API y del worker. Con `INFO` se registra una línea de métricas por respuesta. |
 | `DATABASE_URL` | `postgresql+asyncpg://support:support@localhost:5432/support` | Conexión a PostgreSQL (driver asyncpg). |
 | `LLM_BASE_URL` | `http://ollama:11434/v1` | Base de la API compatible con OpenAI. |
 | `LLM_API_KEY` | vacío | Se envía como `Authorization: Bearer` solo si tiene valor. |

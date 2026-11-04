@@ -96,8 +96,10 @@ async def _sleep(stop: asyncio.Event, seconds: float) -> None:
 
 
 async def main() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
     settings = get_settings()
+    logging.basicConfig(
+        level=settings.log_level.upper(), format="%(asctime)s %(levelname)s %(name)s %(message)s"
+    )
     llm = OpenAICompatibleClient.from_settings(settings)
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()

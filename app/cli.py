@@ -3,22 +3,36 @@
 - `create-app`: da de alta una app y muestra su API key y sus secretos (JWT y webhook).
 - `update-app`: cambia el webhook o los orígenes permitidos, o rota los secretos.
 - `ingest`: indexa los `.md`/`.txt` de una carpeta para una app.
+- `export-dataset`: exporta las respuestas valoradas con 👍 a JSONL (fine-tuning).
+- `evaluate`: lanza los casos de `eval/cases.toml` contra el bot y muestra un informe.
 """
 
 import argparse
 import asyncio
+import json
 import re
 import sys
 from collections.abc import Sequence
+from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlsplit
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from app.auth import generate_jwt_secret, register_app
+from app.chat.prompt import SystemPrompt
 from app.config import Settings, get_settings
+from app.dataset import export_dataset
 from app.db import create_engine, create_sessionmaker
+from app.evaluation import (
+    format_report,
+    load_cases,
+    results_as_dicts,
+    run_evaluation,
+    summarize_results,
+)
+from app.llm import LlmClient, OpenAICompatibleClient
 from app.models import ClientApp
 from app.rag.ingest import upsert_document
 from app.webhooks import generate_webhook_secret
@@ -112,6 +126,72 @@ async def ingest_command(
     return 0
 
 
+async def _find_app(session: AsyncSession, slug: str) -> ClientApp | None:
+    client_app = await session.scalar(select(ClientApp).where(ClientApp.slug == slug))
+    if client_app is None:
+        print(f"No existe la app '{slug}'.", file=sys.stderr)
+    return client_app
+
+
+async def export_dataset_command(
+    session: AsyncSession, args: argparse.Namespace, settings: Settings
+) -> int:
+    if (client_app := await _find_app(session, args.app)) is None:
+        return 1
+    since = datetime.fromisoformat(args.since) if args.since else None
+    output = Path(args.output)
+    with output.open("w", encoding="utf-8") as handle:  # noqa: ASYNC230 (CLI, fichero local)
+        written = await export_dataset(
+            session,
+            client_app,
+            SystemPrompt(settings.system_prompt_path),
+            handle,
+            history_max_messages=settings.history_max_messages,
+            since=since,
+        )
+    print(f"{written} ejemplos exportados a {output}")
+    return 0
+
+
+async def evaluate_command(
+    engine: AsyncEngine,
+    session: AsyncSession,
+    args: argparse.Namespace,
+    settings: Settings,
+    llm: LlmClient | None,
+) -> int:
+    if (client_app := await _find_app(session, args.app)) is None:
+        return 1
+    cases, markers = load_cases(Path(args.cases))
+    own_llm = llm is None
+    llm = llm or OpenAICompatibleClient.from_settings(settings)
+    try:
+        results = await run_evaluation(
+            engine,
+            llm,
+            settings,
+            SystemPrompt(settings.system_prompt_path),
+            client_app,
+            cases,
+            markers,
+        )
+    finally:
+        if own_llm:
+            await llm.aclose()
+    summary = summarize_results(results)
+    print(format_report(results, summary))
+    if args.output:
+        report = {"summary": summary, "results": results_as_dicts(results)}
+        Path(args.output).write_text(  # noqa: ASYNC240 (CLI, fichero local)
+            json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        print(f"Informe guardado en {args.output}")
+    if args.min_accuracy is not None and summary["accuracy"] < args.min_accuracy:
+        print(f"Precisión por debajo de {args.min_accuracy:.0%}", file=sys.stderr)
+        return 2
+    return 0
+
+
 def read_documents(root: Path) -> list[tuple[str, str, str]]:
     """(external_id, título, contenido) de cada .md/.txt; el id es la ruta relativa."""
     if not root.is_dir():
@@ -163,20 +243,47 @@ def build_parser() -> argparse.ArgumentParser:
     ingest = commands.add_parser("ingest", help="Indexa una carpeta de .md/.txt.")
     ingest.add_argument("--app", required=True, help="Slug de la app.")
     ingest.add_argument("folder", help="Carpeta con la documentación.")
+
+    export = commands.add_parser(
+        "export-dataset", help="Exporta las respuestas valoradas con 👍 a JSONL (Unsloth)."
+    )
+    export.add_argument("--app", required=True, help="Slug de la app.")
+    export.add_argument("--output", required=True, help="Fichero .jsonl de salida.")
+    export.add_argument("--since", help="Solo conversaciones desde esta fecha (ISO 8601).")
+
+    evaluate = commands.add_parser("evaluate", help="Evalúa el bot con un fichero de casos.")
+    evaluate.add_argument("--app", required=True, help="Slug de la app.")
+    evaluate.add_argument("--cases", default="eval/cases.toml", help="Fichero de casos (TOML).")
+    evaluate.add_argument("--output", help="Guarda el informe completo en JSON.")
+    evaluate.add_argument(
+        "--min-accuracy",
+        type=float,
+        help="Sale con código 2 si la precisión queda por debajo (0–1). Útil en CI.",
+    )
     return parser
 
 
-async def run(argv: Sequence[str] | None = None, settings: Settings | None = None) -> int:
+async def run(
+    argv: Sequence[str] | None = None,
+    settings: Settings | None = None,
+    llm: LlmClient | None = None,
+) -> int:
     args = build_parser().parse_args(argv)
     settings = settings or get_settings()
     engine = create_engine(str(settings.database_url))
     try:
         async with create_sessionmaker(engine)() as session:
-            if args.command == "create-app":
-                return await create_app_command(session, args)
-            if args.command == "update-app":
-                return await update_app_command(session, args)
-            return await ingest_command(session, args, settings)
+            match args.command:
+                case "create-app":
+                    return await create_app_command(session, args)
+                case "update-app":
+                    return await update_app_command(session, args)
+                case "ingest":
+                    return await ingest_command(session, args, settings)
+                case "export-dataset":
+                    return await export_dataset_command(session, args, settings)
+                case _:
+                    return await evaluate_command(engine, session, args, settings, llm)
     finally:
         await engine.dispose()
 

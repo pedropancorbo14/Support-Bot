@@ -170,6 +170,8 @@ class Message(Base):
     ttft_ms: Mapped[int | None]
     # [{"chunk_id", "document", "section", "score"}]
     retrieved_chunks: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB)
+    # Documentación tal y como se inyectó en el prompt (los documentos pueden cambiar).
+    context: Mapped[str | None] = mapped_column(Text)
     flags: Mapped[list[str]] = mapped_column(ARRAY(String(20)), default=list)
     rating: Mapped[int | None] = mapped_column(SmallInteger)  # 1 = 👍, -1 = 👎
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

@@ -62,6 +62,19 @@ El primer comando muestra la API key, el secreto JWT y el secreto del webhook **
 vez**. Guárdalos en la app cliente. Los detalles están en [ingesta y recuperación](rag.md)
 y [API del widget](api-widget.md).
 
+## Evaluar y exportar desde Docker
+
+```bash
+docker compose run --rm -v ./eval:/app/eval api python -m app.cli evaluate --app mi-app
+docker compose run --rm -v ./exports:/exports api \
+  python -m app.cli export-dataset --app mi-app --output /exports/mi-app.jsonl
+```
+
+El volumen de `eval` permite editar los casos sin reconstruir la imagen. El contenedor
+corre con el usuario `app` (uid 1000): si vas a escribir en una carpeta del host
+(`--output`), debe tener permisos de escritura para ese uid. Ver
+[evaluación](evaluacion.md) y [dataset](dataset.md).
+
 ## Integración continua
 
 `.github/workflows/ci.yml` se ejecuta en cada push y en cada pull request. Levanta

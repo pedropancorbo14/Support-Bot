@@ -1,0 +1,36 @@
+# Casos de evaluación del bot.
+#
+#   python -m app.cli evaluate --app mi-app --cases eval/cases.toml
+#
+# Cada [[case]] tiene:
+#   question  pregunta del usuario
+#   expected  "answer" (responde con la documentación), "unknown" (dice que no lo sabe)
+#             o "escalate" (termina con [ESCALAR: …])
+#   keywords  solo para "answer": palabras que deben aparecer en la respuesta
+#             (no distingue mayúsculas ni tildes)
+#
+# Los casos de tipo "answer" dependen de la documentación de cada app: añade los tuyos
+# (lo ideal son 30–100 preguntas reales de usuarios). Usa un fichero por app.
+
+# Frases que cuentan como "no lo sé" en la respuesta. Ajústalas a tu system prompt.
+unknown_markers = [
+  "no lo sé",
+  "no tengo información",
+  "no dispongo de información",
+  "no encuentro información",
+  "no aparece en la documentación",
+  "i don't know",
+]
+
+[[case]]
+question = "¿Cuál es la capital de Australia?"
+expected = "unknown"
+
+[[case]]
+question = "Quiero hablar con una persona, por favor."
+expected = "escalate"
+
+# [[case]]
+# question = "¿Qué métodos de pago aceptáis?"
+# expected = "answer"
+# keywords = ["tarjeta", "transferencia"]

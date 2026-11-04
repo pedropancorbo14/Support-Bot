@@ -1,3 +1,4 @@
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -25,6 +26,10 @@ def create_app(settings: Settings | None = None, llm: LlmClient | None = None) -
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        logging.basicConfig(
+            level=settings.log_level.upper(),
+            format="%(asctime)s %(levelname)s %(name)s %(message)s",
+        )
         engine = create_engine(str(settings.database_url))
         redis = Redis.from_url(settings.redis_url, socket_timeout=1, socket_connect_timeout=1)
         app.state.settings = settings

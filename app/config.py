@@ -11,6 +11,8 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
+    log_level: str = "INFO"
+
     database_url: PostgresDsn = Field(
         default="postgresql+asyncpg://support:support@localhost:5432/support",
     )
