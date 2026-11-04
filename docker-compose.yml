@@ -1,0 +1,87 @@
+name: support-bot
+
+# Solo `api` publica un puerto. PostgreSQL y Ollama solo son accesibles desde la
+# red interna de Docker. El perfil de Ollama (cpu, nvidia, amd o vulkan) se elige
+# con COMPOSE_PROFILES en `.env`.
+
+x-ollama: &ollama
+  volumes:
+    - ollama:/root/.ollama
+  environment: &ollama-env
+    OLLAMA_CONTEXT_LENGTH: ${LLM_NUM_CTX:-8192}
+    OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-24h}
+  networks:
+    backend:
+      aliases: [ollama]
+  restart: unless-stopped
+
+services:
+  api:
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [backend]
+    restart: unless-stopped
+
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      retries: 10
+    networks: [backend]
+    restart: unless-stopped
+
+  ollama-cpu:
+    <<: *ollama
+    image: ollama/ollama:latest
+    profiles: [cpu]
+
+  ollama-nvidia:
+    <<: *ollama
+    image: ollama/ollama:latest
+    profiles: [nvidia]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  ollama-amd:
+    <<: *ollama
+    image: ollama/ollama:rocm
+    profiles: [amd]
+    devices:
+      - /dev/kfd
+      - /dev/dri
+
+  ollama-vulkan:
+    <<: *ollama
+    image: ollama/ollama:latest
+    profiles: [vulkan]
+    environment:
+      <<: *ollama-env
+      OLLAMA_VULKAN: "1"
+    devices:
+      - /dev/dri
+
+networks:
+  backend:
+
+volumes:
+  postgres:
+  ollama:
