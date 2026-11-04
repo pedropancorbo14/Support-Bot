@@ -1,7 +1,20 @@
+import uuid
 from datetime import datetime
+from enum import StrEnum
+from typing import Any
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import DateTime, ForeignKey, Index, String, Text, UniqueConstraint, func
+from sqlalchemy import (
+    BigInteger,
+    DateTime,
+    ForeignKey,
+    Index,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from app.config import get_settings
@@ -20,6 +33,9 @@ class ClientApp(Base):
     slug: Mapped[str] = mapped_column(String(64), unique=True)
     name: Mapped[str] = mapped_column(String(200))
     api_key_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    webhook_url: Mapped[str | None] = mapped_column(String(2000))
+    # En claro porque hace falta para firmar (HMAC); solo se muestra al crearlo.
+    webhook_secret: Mapped[str | None] = mapped_column(String(100))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -71,3 +87,116 @@ class Chunk(Base):
     )
 
     document: Mapped[Document] = relationship(back_populates="chunks")
+
+
+class ConversationKind(StrEnum):
+    BOT = "bot"
+    HUMAN = "human"
+
+
+class ConversationStatus(StrEnum):
+    OPEN = "open"
+    CLOSED = "closed"
+
+
+class EscalatedBy(StrEnum):
+    MODEL = "model"
+    USER = "user"
+
+
+class MessageRole(StrEnum):
+    USER = "user"
+    ASSISTANT = "assistant"  # el bot
+    AGENT = "agent"  # una persona del equipo de soporte
+
+
+class MessageFlag(StrEnum):
+    ESCALATED = "escalated"
+    NO_CONTEXT = "no_context"
+    LLM_ERROR = "llm_error"
+
+
+class Conversation(Base):
+    __tablename__ = "conversations"
+    __table_args__ = (Index("ix_conversations_app_user", "app_id", "external_user_id"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    app_id: Mapped[int] = mapped_column(ForeignKey("apps.id", ondelete="CASCADE"))
+    kind: Mapped[ConversationKind] = mapped_column(String(10))
+    status: Mapped[ConversationStatus] = mapped_column(String(10), default=ConversationStatus.OPEN)
+    # Conversación humana -> conversación del bot de la que procede.
+    parent_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("conversations.id", ondelete="SET NULL")
+    )
+    # Datos del usuario final (vienen del JWT; el servicio no gestiona usuarios).
+    external_user_id: Mapped[str] = mapped_column(String(255))
+    user_name: Mapped[str | None] = mapped_column(String(255))
+    user_plan: Mapped[str | None] = mapped_column(String(100))
+    user_locale: Mapped[str | None] = mapped_column(String(20))
+    # Resumen de los mensajes antiguos que ya no caben en el historial literal.
+    summary: Mapped[str | None] = mapped_column(Text)
+    summary_until_message_id: Mapped[int | None] = mapped_column(BigInteger)
+    escalation_reason: Mapped[str | None] = mapped_column(Text)
+    escalated_by: Mapped[EscalatedBy | None] = mapped_column(String(10))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    messages: Mapped[list["Message"]] = relationship(
+        back_populates="conversation", order_by="Message.id", passive_deletes=True
+    )
+
+
+class Message(Base):
+    __tablename__ = "messages"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    conversation_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("conversations.id", ondelete="CASCADE"), index=True
+    )
+    role: Mapped[MessageRole] = mapped_column(String(10))
+    content: Mapped[str] = mapped_column(Text)  # lo que ve el usuario
+    raw_content: Mapped[str | None] = mapped_column(Text)  # salida literal del modelo
+    author_name: Mapped[str | None] = mapped_column(String(255))  # agente humano
+    prompt_tokens: Mapped[int | None]
+    completion_tokens: Mapped[int | None]
+    latency_ms: Mapped[int | None]
+    ttft_ms: Mapped[int | None]
+    # [{"chunk_id", "document", "section", "score"}]
+    retrieved_chunks: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB)
+    flags: Mapped[list[str]] = mapped_column(ARRAY(String(20)), default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    conversation: Mapped[Conversation] = relationship(back_populates="messages")
+
+
+class DeliveryStatus(StrEnum):
+    PENDING = "pending"
+    DELIVERED = "delivered"
+    FAILED = "failed"
+
+
+class WebhookDelivery(Base):
+    """Cada envío de webhook y sus intentos. También es la cola del worker."""
+
+    __tablename__ = "webhook_deliveries"
+    __table_args__ = (
+        Index(
+            "ix_webhook_deliveries_pending",
+            "next_attempt_at",
+            postgresql_where="status = 'pending'",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    app_id: Mapped[int] = mapped_column(ForeignKey("apps.id", ondelete="CASCADE"), index=True)
+    event: Mapped[str] = mapped_column(String(50))
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    status: Mapped[DeliveryStatus] = mapped_column(String(10), default=DeliveryStatus.PENDING)
+    attempts: Mapped[int] = mapped_column(default=0)
+    next_attempt_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    last_status_code: Mapped[int | None]
+    last_error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

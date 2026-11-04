@@ -52,8 +52,12 @@ La app se identifica por la API key (llamadas administrativas) o por el JWT (wid
 | `rag/ingest.py` | Alta, actualización (diff por hash) y borrado de documentos | 2 |
 | `rag/retriever.py` | Búsqueda por coseno, umbral y formato del contexto | 2 |
 | `api/admin.py` | Endpoints administrativos (`/admin/...`) | 2 |
-| `worker.py` | Proceso en segundo plano (embeddings) | 2 |
-| `cli.py` | `create-app` e `ingest` | 2 |
+| `worker.py` | Proceso en segundo plano (webhooks y embeddings) | 2–3 |
+| `cli.py` | `create-app`, `update-app` e `ingest` | 2–3 |
+| `chat/service.py` | `ChatService`: bot, escalado y chat humano | 3 |
+| `chat/prompt.py` | System prompt, montaje del prompt e historial | 3 |
+| `chat/escalation.py` | Detección de `[ESCALAR: motivo]` en streaming | 3 |
+| `webhooks.py` | Firma HMAC, cola de envíos y reintentos | 3 |
 
 La tabla se amplía en cada fase.
 
@@ -68,5 +72,7 @@ El trabajo en segundo plano usa la propia base de datos como cola (patrón *outb
   workers sin pisarse. Si uno cae a mitad, la transacción se deshace y el trabajo sigue
   pendiente.
 - Un índice parcial (`ix_chunks_pending`) hace que buscar pendientes sea barato.
+- Los webhooks siguen el mismo patrón: `webhook_deliveries` con `status = 'pending'` y
+  `next_attempt_at` vencido es la cola (índice parcial `ix_webhook_deliveries_pending`).
 
 Redis solo se añadirá en la fase 4, para el rate limiting compartido entre instancias.

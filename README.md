@@ -30,5 +30,7 @@ uv run pytest -q
 - [Configuración](docs/configuracion.md)
 - [Cliente LLM](docs/cliente-llm.md)
 - [Ingesta y recuperación (RAG)](docs/rag.md)
+- [Conversaciones, prompt y escalado](docs/conversaciones.md)
+- [Webhooks](docs/webhooks.md)
 - [API administrativa](docs/api-admin.md)
 - [Despliegue](docs/despliegue.md)

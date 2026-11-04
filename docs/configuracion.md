@@ -35,6 +35,14 @@ La referencia comentada está en `.env.example`.
 | `RAG_MIN_SCORE` | `0.5` | Similitud de coseno mínima (0–1). Ajústala con la evaluación (fase 5). |
 | `WORKER_POLL_INTERVAL` | `2` | Segundos entre sondeos del worker cuando no hay trabajo. Es también el primer intervalo del backoff ante fallos (se duplica hasta 60 s). |
 
+| `SYSTEM_PROMPT_PATH` | `prompts/system.md` | Fichero del system prompt. Se relee al cambiar. |
+| `HISTORY_MAX_MESSAGES` | `10` | Mensajes recientes que van literales en el prompt. |
+| `HISTORY_MAX_TOKENS` | `2000` | Presupuesto de tokens para ese historial literal. Lo que no cabe se resume. |
+| `PUBLIC_BASE_URL` | `http://localhost:8000` | URL pública del servicio, usada en los enlaces de los webhooks. |
+| `WEBHOOK_TIMEOUT` | `10` | Timeout de cada envío de webhook, en segundos. |
+| `WEBHOOK_MAX_ATTEMPTS` | `8` | Intentos antes de marcar un webhook como `failed`. |
+| `WEBHOOK_RETRY_BASE_SECONDS` | `30` | Espera tras el primer fallo. Se duplica en cada intento, con un máximo de 1 h. |
+
 ### Por qué `num_ctx` va por variable de entorno de Ollama
 
 La API compatible con OpenAI no tiene un parámetro para el tamaño de contexto, así que se

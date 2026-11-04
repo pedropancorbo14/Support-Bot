@@ -1,8 +1,9 @@
 """Worker en segundo plano: `python -m app.worker`.
 
-Usa PostgreSQL como cola (patrón outbox): un chunk con `embedding IS NULL` es un trabajo
-pendiente. Se reclaman con `FOR UPDATE SKIP LOCKED`, así que pueden correr varios workers
-a la vez y un trabajo nunca se pierde aunque el worker caiga a mitad.
+Genera embeddings y envía webhooks. Usa PostgreSQL como cola (patrón outbox): un chunk con
+`embedding IS NULL` o un webhook `pending` vencido es un trabajo pendiente. Se reclaman
+con `FOR UPDATE SKIP LOCKED`, así que pueden correr varios workers a la vez y un trabajo
+nunca se pierde aunque el worker caiga a mitad.
 """
 
 import asyncio
@@ -10,6 +11,7 @@ import contextlib
 import logging
 import signal
 
+import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -17,6 +19,7 @@ from app.config import Settings, get_settings
 from app.db import create_engine, create_sessionmaker
 from app.llm import LlmClient, LlmError, OpenAICompatibleClient
 from app.models import Chunk, Document
+from app.webhooks import deliver_pending
 
 logger = logging.getLogger("app.worker")
 
@@ -62,22 +65,29 @@ async def run(settings: Settings, llm: LlmClient, stop: asyncio.Event) -> None:
     engine = create_engine(str(settings.database_url))
     sessionmaker = create_sessionmaker(engine)
     backoff = settings.worker_poll_interval
-    try:
-        while not stop.is_set():
-            try:
-                processed = await embed_pending_chunks(sessionmaker, llm, settings)
-            except LlmError as exc:
-                logger.warning("Fallo generando embeddings (%s); reintento en %.1fs", exc, backoff)
-                await _sleep(stop, backoff)
-                backoff = min(backoff * 2, MAX_BACKOFF_SECONDS)
-                continue
-            backoff = settings.worker_poll_interval
-            if processed:
-                logger.info("Embeddings generados: %d", processed)
-            else:
-                await _sleep(stop, settings.worker_poll_interval)
-    finally:
-        await engine.dispose()
+    async with httpx.AsyncClient(follow_redirects=False) as http:
+        try:
+            while not stop.is_set():
+                # Los webhooks primero: un escalado no debe esperar a una reindexación.
+                processed = await deliver_pending(sessionmaker, http, llm, settings)
+                try:
+                    embedded = await embed_pending_chunks(sessionmaker, llm, settings)
+                except LlmError as exc:
+                    logger.warning(
+                        "Fallo generando embeddings (%s); reintento en %.1fs", exc, backoff
+                    )
+                    await _sleep(stop, backoff)
+                    backoff = min(backoff * 2, MAX_BACKOFF_SECONDS)
+                    continue
+                backoff = settings.worker_poll_interval
+                if embedded:
+                    logger.info("Embeddings generados: %d", embedded)
+                if processed:
+                    logger.info("Webhooks procesados: %d", processed)
+                if not embedded and not processed:
+                    await _sleep(stop, settings.worker_poll_interval)
+        finally:
+            await engine.dispose()
 
 
 async def _sleep(stop: asyncio.Event, seconds: float) -> None:

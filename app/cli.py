@@ -19,6 +19,7 @@ from app.config import Settings, get_settings
 from app.db import create_engine, create_sessionmaker
 from app.models import ClientApp
 from app.rag.ingest import upsert_document
+from app.webhooks import generate_webhook_secret
 
 DOC_EXTENSIONS = {".md", ".markdown", ".txt"}
 _H1 = re.compile(r"^#\s+(.+?)\s*#*\s*$", re.MULTILINE)
@@ -29,9 +30,24 @@ async def create_app_command(session: AsyncSession, args: argparse.Namespace) ->
         print(f"Ya existe una app con slug '{args.slug}'.", file=sys.stderr)
         return 1
     client_app, api_key = await register_app(session, slug=args.slug, name=args.name)
+    client_app.webhook_url = args.webhook_url
+    client_app.webhook_secret = generate_webhook_secret()
     await session.commit()
     print(f"App creada: {client_app.slug} (id {client_app.id})")
-    print(f"API key (guárdala, no se volverá a mostrar): {api_key}")
+    print("Guarda estos secretos en la app cliente; no se volverán a mostrar.")
+    print(f"API key: {api_key}")
+    print(f"Secreto del webhook: {client_app.webhook_secret}")
+    return 0
+
+
+async def update_app_command(session: AsyncSession, args: argparse.Namespace) -> int:
+    client_app = await session.scalar(select(ClientApp).where(ClientApp.slug == args.slug))
+    if client_app is None:
+        print(f"No existe la app '{args.slug}'.", file=sys.stderr)
+        return 1
+    client_app.webhook_url = args.webhook_url or None
+    await session.commit()
+    print(f"Webhook de {client_app.slug}: {client_app.webhook_url or '(desactivado)'}")
     return 0
 
 
@@ -92,6 +108,13 @@ def build_parser() -> argparse.ArgumentParser:
     create = commands.add_parser("create-app", help="Da de alta una app cliente.")
     create.add_argument("--slug", required=True, help="Identificador corto y único.")
     create.add_argument("--name", required=True, help="Nombre visible.")
+    create.add_argument("--webhook-url", help="URL que recibirá los webhooks.")
+
+    update = commands.add_parser("update-app", help="Modifica una app cliente.")
+    update.add_argument("--slug", required=True, help="Slug de la app.")
+    update.add_argument(
+        "--webhook-url", required=True, help='URL de los webhooks ("" para desactivarlos).'
+    )
 
     ingest = commands.add_parser("ingest", help="Indexa una carpeta de .md/.txt.")
     ingest.add_argument("--app", required=True, help="Slug de la app.")
@@ -107,6 +130,8 @@ async def run(argv: Sequence[str] | None = None, settings: Settings | None = Non
         async with create_sessionmaker(engine)() as session:
             if args.command == "create-app":
                 return await create_app_command(session, args)
+            if args.command == "update-app":
+                return await update_app_command(session, args)
             return await ingest_command(session, args, settings)
     finally:
         await engine.dispose()

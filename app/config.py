@@ -1,4 +1,5 @@
 from functools import lru_cache
+from pathlib import Path
 from typing import Self
 
 from pydantic import Field, PostgresDsn, SecretStr, model_validator
@@ -34,6 +35,15 @@ class Settings(BaseSettings):
     rag_min_score: float = Field(default=0.5, ge=-1, le=1)
 
     worker_poll_interval: float = Field(default=2.0, gt=0)
+
+    system_prompt_path: Path = Path("prompts/system.md")
+    history_max_messages: int = Field(default=10, ge=0)
+    history_max_tokens: int = Field(default=2000, ge=0)
+
+    public_base_url: str = "http://localhost:8000"
+    webhook_timeout: float = Field(default=10.0, gt=0)
+    webhook_max_attempts: int = Field(default=8, gt=0)
+    webhook_retry_base_seconds: float = Field(default=30.0, gt=0)
 
     @model_validator(mode="after")
     def _check_chunking(self) -> Self:

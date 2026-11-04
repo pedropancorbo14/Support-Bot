@@ -15,7 +15,8 @@ python -m app.cli create-app --slug mi-app --name "Mi App"
 ```
 
 Se guarda el SHA-256 de la clave, nunca la clave en claro. Si la pierdes, hay que
-generar una nueva.
+generar una nueva. Con `--webhook-url` se configura además el webhook; el secreto para
+verificarlo se muestra en el mismo momento (ver [webhooks](webhooks.md)).
 
 ## `PUT /admin/documents/{external_id}`
 
@@ -52,3 +53,42 @@ existe en tu app.
 ```bash
 curl -X DELETE https://soporte.midominio.com/admin/documents/faq-pagos -H "X-Api-Key: sk_..."
 ```
+
+
+## `GET /admin/conversations`
+
+Conversaciones de la app, de la más reciente a la más antigua.
+
+| Parámetro | Descripción |
+|---|---|
+| `user_id` | Solo las de ese usuario (id externo del JWT). |
+| `kind` | `bot` o `human`. |
+| `status` | `open` o `closed`. |
+| `limit` / `offset` | Paginación (`limit` de 1 a 200; 50 por defecto). |
+
+Para ver la cola de conversaciones pendientes de un agente:
+`GET /admin/conversations?kind=human&status=open`.
+
+## `GET /admin/conversations/{id}`
+
+Conversación completa: datos del usuario, estado, motivo del escalado, `parent_id` (la
+conversación del bot de la que procede, si es humana) y todos los mensajes con sus
+métricas (`prompt_tokens`, `completion_tokens`, `latency_ms`, `ttft_ms`,
+`retrieved_chunks`, `flags`, `raw_content`). Devuelve `404` si no existe o es de otra app.
+
+## `POST /admin/conversations/{id}/messages`
+
+Respuesta de un agente humano. Solo es válida en conversaciones humanas abiertas: en
+cualquier otro caso devuelve `409`.
+
+```json
+{"content": "Hola Ana, soy Luis. Ya veo el cobro duplicado.", "author_name": "Luis"}
+```
+
+Respuesta `201` con el mensaje creado (`role: "agent"`).
+
+## `POST /admin/conversations/{id}/close`
+
+El agente cierra la conversación humana. Devuelve `204`, o `409` si no es humana o ya
+estaba cerrada. Cuando el usuario vuelva al widget, empezará una conversación nueva con
+el bot.

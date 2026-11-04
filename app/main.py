@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.api import admin, health
+from app.chat.prompt import SystemPrompt
 from app.config import Settings, get_settings
 from app.db import create_engine, create_sessionmaker
 from app.llm import LlmClient, OpenAICompatibleClient
@@ -18,6 +19,7 @@ def create_app(settings: Settings | None = None, llm: LlmClient | None = None) -
         app.state.settings = settings
         app.state.sessionmaker = create_sessionmaker(engine)
         app.state.llm = llm or OpenAICompatibleClient.from_settings(settings)
+        app.state.system_prompt = SystemPrompt(settings.system_prompt_path)
         try:
             yield
         finally:

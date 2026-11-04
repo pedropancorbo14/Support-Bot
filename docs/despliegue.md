@@ -5,8 +5,8 @@
 | Servicio | Imagen | Puertos publicados | Notas |
 |---|---|---|---|
 | `migrate` | build local | ninguno | Aplica las migraciones (`alembic upgrade head`) y termina. |
-| `api` | build local | `${API_PORT:-8000}` | Uvicorn. Arranca cuando `migrate` termina bien. |
-| `worker` | build local | ninguno | `python -m app.worker`: genera los embeddings pendientes. Se puede escalar (`--scale worker=3`). |
+| `api` | build local | `${API_PORT:-8000}` | Uvicorn. Arranca cuando `migrate` termina bien. Monta `./prompts` (solo lectura) para editar el system prompt sin reconstruir. |
+| `worker` | build local | ninguno | `python -m app.worker`: envía webhooks y genera embeddings. Se puede escalar (`--scale worker=3`). |
 | `postgres` | `pgvector/pgvector:pg17` | ninguno | Volumen `postgres`. |
 | `ollama-<perfil>` | `ollama/ollama` | ninguno | Alias de red `ollama`. Volumen `ollama` con los modelos. |
 
@@ -39,11 +39,12 @@ curl http://localhost:8000/health
 ## Dar de alta una app e indexar su documentación
 
 ```bash
-docker compose run --rm api python -m app.cli create-app --slug mi-app --name "Mi App"
+docker compose run --rm api python -m app.cli create-app --slug mi-app --name "Mi App" \
+  --webhook-url https://mi-app.com/support/webhook
 docker compose run --rm -v ./docs-mi-app:/docs:ro api python -m app.cli ingest --app mi-app /docs
 ```
 
-El primer comando muestra la API key **una sola vez**. Guárdala en la app cliente. Los
+El primer comando muestra la API key y el secreto del webhook **una sola vez**. Guárdala en la app cliente. Los
 detalles están en [ingesta y recuperación](rag.md).
 
 ## Integración continua

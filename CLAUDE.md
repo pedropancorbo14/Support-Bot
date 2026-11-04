@@ -28,7 +28,7 @@ las decisiones están en `docs/arquitectura.md`.
 - **Una rama por fase**, con nombre descriptivo. Cada rama sale de la anterior:
   1. `fase-1-esqueleto-docker-configuracion-cliente-llm` ✅
   2. `fase-2-ingesta-documentacion-y-recuperacion-rag` ✅
-  3. `fase-3-conversaciones-prompt-escalado-webhooks`
+  3. `fase-3-conversaciones-prompt-escalado-webhooks` ✅
   4. `fase-4-autenticacion-jwt-api-streaming-widget`
   5. `fase-5-observabilidad-exportacion-evaluacion-readme`
 - Documentar todo lo que se haga en `docs/` (y mantener este fichero al día).
@@ -67,6 +67,15 @@ y tener las migraciones aplicadas (`DATABASE_URL=<esa url> uv run alembic upgrad
   `app_id`: nunca devolver ni tocar datos de otra app (hay tests de aislamiento).
 - Trabajo en segundo plano = filas pendientes en PostgreSQL + `FOR UPDATE SKIP LOCKED` en
   `app/worker.py`. No añadir otro sistema de colas.
+- La lógica de conversación vive en `app/chat/service.py:ChatService`. Los routers solo
+  traducen HTTP ↔ servicio (`get_chat_service` como dependencia). Errores de estado →
+  `ConversationStateError` (→ 409); conversación ajena o inexistente → `LookupError` (→ 404).
+- Webhooks: `app.webhooks.enqueue` dentro de la transacción del cambio. Nunca enviar HTTP
+  desde la petición del usuario; lo hace el worker.
+- El contenido de `prompts/system.md` lo decide el usuario: no escribir instrucciones ahí.
+- SQLAlchemy 2.1: usar `any_()` (no `ARRAY.any()`, obsoleto). En tests, no usar
+  `session.expire_all()` con objetos que se sigan usando (provoca lazy-load fuera de greenlet);
+  usar `execution_options(populate_existing=True)`.
 - Tokens estimados con `app.llm.estimate_tokens` (≈4 caracteres/token). Los reales salen del `usage`.
 - Tests asíncronos con `pytest.mark.anyio` (sin pytest-asyncio). Cliente HTTP con
   `httpx.ASGITransport` dentro de `app.router.lifespan_context(app)`.
@@ -84,5 +93,13 @@ y tener las migraciones aplicadas (`DATABASE_URL=<esa url> uv run alembic upgrad
   con API key (hash SHA-256), chunker por secciones, ingesta con diff por hash, worker de
   embeddings con cola en PostgreSQL, recuperación por coseno con umbral, `PUT/DELETE
   /admin/documents/{external_id}`, CLI `create-app` e `ingest`, servicios `migrate` y `worker`.
-- Pendiente para la fase 3: conversaciones y mensajes, `prompts/system.md`, montaje del
-  prompt, resumen del historial, `[ESCALAR]`, conversación humana, webhooks firmados.
+- **Fase 3 (hecha):** tablas `conversations`, `messages`, `webhook_deliveries`;
+  `ChatService` (bot con streaming y métricas, resumen de historial, escalado por modelo o
+  usuario, conversación humana, cierre por el agente); `prompts/system.md` con
+  placeholders y recarga en caliente; filtro de `[ESCALAR]` en streaming; webhooks
+  `conversation.escalated` y `message.created` firmados (HMAC) con reintentos y resumen
+  generado en el worker; endpoints admin de conversaciones; CLI `update-app`.
+- Pendiente para la fase 4: JWT de usuario final (secreto por app), endpoints del widget
+  con SSE (incluidos los mensajes del agente en tiempo real), valoración 👍/👎, rate limit
+  con Redis, CORS por app y `widget.js`.
+- Pendiente del usuario: el texto de `prompts/system.md`.

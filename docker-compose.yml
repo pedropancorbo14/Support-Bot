@@ -36,6 +36,9 @@ services:
     <<: *service
     ports:
       - "${API_PORT:-8000}:8000"
+    volumes:
+      # El system prompt se edita en el host y el servicio lo relee sin reiniciar.
+      - ./prompts:/app/prompts:ro
     depends_on:
       migrate:
         condition: service_completed_successfully

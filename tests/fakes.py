@@ -15,11 +15,13 @@ class FakeLlmClient:
         dimensions: int = 768,
         fail: bool = False,
         healthy: bool = True,
+        stream_chunk_size: int | None = None,
     ) -> None:
         self.replies = list(replies)
         self.dimensions = dimensions
         self.fail = fail
         self.healthy = healthy
+        self.stream_chunk_size = stream_chunk_size  # None = palabra a palabra
         self.calls: list[list[ChatMessage]] = []
         self.embedded: list[str] = []
 
@@ -35,10 +37,15 @@ class FakeLlmClient:
 
     async def chat_stream(self, messages: Sequence[ChatMessage]) -> AsyncIterator[str | Usage]:
         reply = self._next_reply(messages)
-        first, *rest = reply.split(" ")
-        yield first
-        for word in rest:
-            yield " " + word
+        if self.stream_chunk_size:
+            size = self.stream_chunk_size
+            for start in range(0, len(reply), size):
+                yield reply[start : start + size]
+        else:
+            first, *rest = reply.split(" ")
+            yield first
+            for word in rest:
+                yield " " + word
         yield self._usage(messages, reply)
 
     async def embed(self, texts: Sequence[str]) -> list[list[float]]:
