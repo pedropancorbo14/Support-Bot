@@ -1,7 +1,10 @@
 import os
+import time
 from collections.abc import AsyncIterator
+from typing import Any
 
 import httpx
+import jwt
 import pytest
 from fastapi import FastAPI
 from sqlalchemy import text
@@ -17,6 +20,7 @@ from tests.fakes import FakeLlmClient
 TEST_DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL", "postgresql+asyncpg://support:support@localhost:5432/support_test"
 )
+TEST_REDIS_URL = os.environ.get("TEST_REDIS_URL", "redis://localhost:6379/15")
 
 
 @pytest.fixture
@@ -26,7 +30,13 @@ def anyio_backend() -> str:
 
 @pytest.fixture
 def settings() -> Settings:
-    return Settings(_env_file=None, database_url=TEST_DATABASE_URL)
+    return Settings(
+        _env_file=None,
+        database_url=TEST_DATABASE_URL,
+        redis_url=TEST_REDIS_URL,
+        cors_cache_seconds=0,
+        widget_poll_interval=0.05,
+    )
 
 
 @pytest.fixture
@@ -79,6 +89,7 @@ async def app(
 ) -> AsyncIterator[FastAPI]:
     application = create_app(settings, llm=fake_llm)
     async with application.router.lifespan_context(application):
+        await application.state.redis.flushdb()
         yield application
 
 
@@ -87,3 +98,23 @@ async def client(app: FastAPI) -> AsyncIterator[httpx.AsyncClient]:
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as http:
         yield http
+
+
+def make_token(client_app: ClientApp, **overrides: Any) -> str:
+    """JWT de usuario final como lo emitiría la app cliente."""
+    now = int(time.time())
+    claims = {
+        "iss": client_app.slug,
+        "user_id": "u-42",
+        "name": "Ana",
+        "plan": "pro",
+        "locale": "es-ES",
+        "iat": now,
+        "exp": now + 600,
+    } | overrides
+    claims = {key: value for key, value in claims.items() if value is not None}
+    return jwt.encode(claims, client_app.jwt_secret, algorithm="HS256")
+
+
+def bearer(token: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {token}"}

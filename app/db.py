@@ -1,6 +1,7 @@
 from collections.abc import AsyncIterator
+from typing import Annotated
 
-from fastapi import Request
+from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -20,3 +21,8 @@ def create_sessionmaker(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]
 async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
     async with request.app.state.sessionmaker() as session:
         yield session
+
+
+# `scope="function"`: la sesión se cierra al salir del endpoint, no al terminar de enviar la
+# respuesta. Así un stream SSE largo no retiene una conexión del pool.
+DbSession = Annotated[AsyncSession, Depends(get_session, scope="function")]

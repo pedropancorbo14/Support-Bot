@@ -15,8 +15,17 @@ python -m app.cli create-app --slug mi-app --name "Mi App"
 ```
 
 Se guarda el SHA-256 de la clave, nunca la clave en claro. Si la pierdes, hay que
-generar una nueva. Con `--webhook-url` se configura además el webhook; el secreto para
-verificarlo se muestra en el mismo momento (ver [webhooks](webhooks.md)).
+generar una nueva. En el mismo momento se muestran también el **secreto JWT**, con el
+que tu app firma los tokens de sus usuarios (ver [API del widget](api-widget.md)), y el
+**secreto del webhook** (ver [webhooks](webhooks.md)).
+
+| Opción | Descripción |
+|---|---|
+| `--webhook-url URL` | Destino de los webhooks. |
+| `--allowed-origin ORIGEN` | Origen desde el que se carga el widget (repetible). |
+
+Para cambiar una app existente usa `update-app --slug mi-app` con `--webhook-url`,
+`--allowed-origin` (sustituye la lista), `--rotate-jwt-secret` o `--rotate-webhook-secret`.
 
 ## `PUT /admin/documents/{external_id}`
 

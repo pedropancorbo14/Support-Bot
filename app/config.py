@@ -45,6 +45,15 @@ class Settings(BaseSettings):
     webhook_max_attempts: int = Field(default=8, gt=0)
     webhook_retry_base_seconds: float = Field(default=30.0, gt=0)
 
+    redis_url: str = "redis://localhost:6379/0"
+    jwt_max_ttl_seconds: int = Field(default=900, gt=0)
+    jwt_leeway_seconds: int = Field(default=30, ge=0)
+    rate_limit_user_per_minute: int = Field(default=30, gt=0)
+    rate_limit_ip_per_minute: int = Field(default=120, gt=0)
+    cors_cache_seconds: float = Field(default=30.0, ge=0)
+    widget_poll_interval: float = Field(default=2.0, gt=0)
+    sse_heartbeat_seconds: float = Field(default=15.0, gt=0)
+
     @model_validator(mode="after")
     def _check_chunking(self) -> Self:
         if self.chunk_overlap_tokens >= self.chunk_size_tokens:

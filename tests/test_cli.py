@@ -81,3 +81,53 @@ async def test_update_app_webhook_url(sessionmaker, demo_app, settings, capsys) 
         client_app = await session.scalar(select(ClientApp))
     assert client_app.webhook_url is None
     assert "(desactivado)" in capsys.readouterr().out
+
+
+async def test_create_app_with_origins_and_jwt_secret(sessionmaker, settings, capsys) -> None:
+    args = ["create-app", "--slug", "t", "--name", "T"]
+    origins = [
+        "--allowed-origin",
+        "https://App.example.com/panel",
+        "--allowed-origin",
+        "http://localhost:3000",
+    ]
+
+    assert await cli.run(args + origins, settings) == 0
+
+    output = capsys.readouterr().out
+    async with sessionmaker() as session:
+        client_app = await session.scalar(select(ClientApp))
+    assert client_app.allowed_origins == ["http://localhost:3000", "https://app.example.com"]
+    assert f"Secreto JWT: {client_app.jwt_secret}" in output
+
+
+async def test_invalid_origin_is_rejected(sessionmaker, settings) -> None:
+    with pytest.raises(ValueError, match="no es un origen válido"):
+        await cli.run(
+            ["create-app", "--slug", "t", "--name", "T", "--allowed-origin", "app.com"], settings
+        )
+
+
+async def test_update_origins_and_rotate_secrets(sessionmaker, demo_app, settings) -> None:
+    client_app, _ = demo_app
+    old_jwt = client_app.jwt_secret
+
+    code = await cli.run(
+        [
+            "update-app",
+            "--slug",
+            "demo",
+            "--allowed-origin",
+            "https://nueva.example.com",
+            "--rotate-jwt-secret",
+            "--rotate-webhook-secret",
+        ],
+        settings,
+    )
+
+    async with sessionmaker() as session:
+        updated = await session.scalar(select(ClientApp))
+    assert code == 0
+    assert updated.allowed_origins == ["https://nueva.example.com"]
+    assert updated.jwt_secret != old_jwt
+    assert updated.webhook_secret.startswith("whsec_")

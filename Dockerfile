@@ -17,4 +17,7 @@ RUN useradd --create-home --uid 1000 app
 USER app
 
 EXPOSE 8000
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips=*"]
+# --proxy-headers solo confía en X-Forwarded-For de las IPs de FORWARDED_ALLOW_IPS
+# (variable que lee uvicorn). Sin ella, un cliente podría falsear su IP y saltarse el
+# rate limit.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]

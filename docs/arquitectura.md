@@ -6,7 +6,7 @@ Usuario ─► Widget JS (embebido en la app cliente)
               ▼
         Servicio de soporte (FastAPI) ──► Ollama (red interna, sin puertos expuestos)
               │                       └──► PostgreSQL + pgvector
-              │                       └──► Redis (rate limit, fase 4)
+              │                       └──► Redis (rate limit)
               └─ webhooks firmados (HMAC) ──► App cliente (escalados, mensajes al agente)
 
 App cliente ──► API admin del servicio (API key): documentación, conversaciones,
@@ -58,6 +58,11 @@ La app se identifica por la API key (llamadas administrativas) o por el JWT (wid
 | `chat/prompt.py` | System prompt, montaje del prompt e historial | 3 |
 | `chat/escalation.py` | Detección de `[ESCALAR: motivo]` en streaming | 3 |
 | `webhooks.py` | Firma HMAC, cola de envíos y reintentos | 3 |
+| `auth.py` | + JWT del usuario final (`require_end_user`) | 4 |
+| `ratelimit.py` | Límites por usuario y por IP en Redis | 4 |
+| `cors.py` | CORS con los orígenes de cada app | 4 |
+| `api/widget.py` | Endpoints `/v1` (SSE) y `/widget.js` | 4 |
+| `static/widget.js` | Widget embebible (Shadow DOM, sin dependencias) | 4 |
 
 La tabla se amplía en cada fase.
 

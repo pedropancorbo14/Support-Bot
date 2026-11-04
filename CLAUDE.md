@@ -29,7 +29,7 @@ las decisiones están en `docs/arquitectura.md`.
   1. `fase-1-esqueleto-docker-configuracion-cliente-llm` ✅
   2. `fase-2-ingesta-documentacion-y-recuperacion-rag` ✅
   3. `fase-3-conversaciones-prompt-escalado-webhooks` ✅
-  4. `fase-4-autenticacion-jwt-api-streaming-widget`
+  4. `fase-4-autenticacion-jwt-api-streaming-widget` ✅
   5. `fase-5-observabilidad-exportacion-evaluacion-readme`
 - Documentar todo lo que se haga en `docs/` (y mantener este fichero al día).
 - Idioma: código e identificadores en inglés; documentación, mensajes al usuario y
@@ -47,7 +47,11 @@ uv run uvicorn app.main:app --reload      # servidor local
 ```
 
 Fixtures útiles (`tests/conftest.py`): `sessionmaker`/`session` (vacían la base al empezar),
-`demo_app`/`other_app` (`(ClientApp, api_key)`), `client` (httpx contra la app), `fake_llm`.
+`demo_app`/`other_app` (`(ClientApp, api_key)`), `client` (httpx contra la app), `fake_llm`;
+helpers `make_token(app, **claims)` y `bearer(token)` para el widget.
+
+Los tests también necesitan Redis (`TEST_REDIS_URL`, por defecto `redis://localhost:6379/15`,
+que se vacía en cada test). En local: `redis-server --daemonize yes`.
 
 Los tests usan `TEST_DATABASE_URL`, por defecto
 `postgresql+asyncpg://support:support@localhost:5432/support_test`. Esa base debe existir
@@ -76,6 +80,13 @@ y tener las migraciones aplicadas (`DATABASE_URL=<esa url> uv run alembic upgrad
 - SQLAlchemy 2.1: usar `any_()` (no `ARRAY.any()`, obsoleto). En tests, no usar
   `session.expire_all()` con objetos que se sigan usando (provoca lazy-load fuera de greenlet);
   usar `execution_options(populate_existing=True)`.
+- Sesiones en endpoints: siempre `app.db.DbSession` (`scope="function"`). En respuestas en
+  streaming, abrir una sesión propia dentro del generador con `app.state.sessionmaker`.
+- Widget (`/v1`): dependencia `RateLimitedUser` (JWT + rate limit). Un usuario solo ve sus
+  conversaciones (`ChatService.get_user_conversation`). Nunca exponer al widget campos
+  internos (tokens, chunks, flags, `raw_content`).
+- `static/widget.js`: JS sin dependencias ni build, Shadow DOM, SSE con `fetch`. Probar
+  cambios con Playwright (Chromium preinstalado) contra el servicio con `FakeLlmClient`.
 - Tokens estimados con `app.llm.estimate_tokens` (≈4 caracteres/token). Los reales salen del `usage`.
 - Tests asíncronos con `pytest.mark.anyio` (sin pytest-asyncio). Cliente HTTP con
   `httpx.ASGITransport` dentro de `app.router.lifespan_context(app)`.
@@ -99,7 +110,12 @@ y tener las migraciones aplicadas (`DATABASE_URL=<esa url> uv run alembic upgrad
   placeholders y recarga en caliente; filtro de `[ESCALAR]` en streaming; webhooks
   `conversation.escalated` y `message.created` firmados (HMAC) con reintentos y resumen
   generado en el worker; endpoints admin de conversaciones; CLI `update-app`.
-- Pendiente para la fase 4: JWT de usuario final (secreto por app), endpoints del widget
-  con SSE (incluidos los mensajes del agente en tiempo real), valoración 👍/👎, rate limit
-  con Redis, CORS por app y `widget.js`.
+- **Fase 4 (hecha):** JWT HS256 por app (`iss` = slug, `user_id`, `name`, `plan`,
+  `locale`, vida ≤ 15 min), API `/v1` con SSE (respuesta del bot y mensajes del agente en
+  tiempo real con sondeo), escalado desde el widget, valoración 👍/👎, rate limit por
+  usuario e IP en Redis (fail-open), CORS por app, `/health` con Redis, `widget.js`
+  (verificado en Chromium), CLI con `--allowed-origin` y rotación de secretos.
+- Pendiente para la fase 5: métricas (`/admin/metrics`), exportación JSONL para Unsloth,
+  evaluación (fichero de casos + comando con informe), README de integración y código
+  Laravel (emitir JWT, endpoint de token, cargar widget, verificar webhook).
 - Pendiente del usuario: el texto de `prompts/system.md`.

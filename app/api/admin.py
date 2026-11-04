@@ -5,11 +5,10 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, Response, status
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import CurrentApp
 from app.chat.service import ChatService, ConversationStateError, get_chat_service
-from app.db import get_session
+from app.db import DbSession
 from app.models import Conversation, ConversationKind, ConversationStatus, Message
 from app.rag.ingest import IngestStatus, delete_document, upsert_document
 
@@ -36,7 +35,7 @@ async def put_document(
     body: DocumentIn,
     client_app: CurrentApp,
     request: Request,
-    session: Annotated[AsyncSession, Depends(get_session)],
+    session: DbSession,
 ) -> DocumentOut:
     """Crea o actualiza un documento de la app. Idempotente: si no cambia, no hace nada."""
     result = await upsert_document(
@@ -60,7 +59,7 @@ async def put_document(
 async def remove_document(
     external_id: ExternalId,
     client_app: CurrentApp,
-    session: Annotated[AsyncSession, Depends(get_session)],
+    session: DbSession,
 ) -> Response:
     if not await delete_document(session, client_app, external_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Documento no encontrado")
@@ -128,7 +127,7 @@ async def _conversation(chat: ChatService, app_id: int, conversation_id: uuid.UU
 @router.get("/conversations")
 async def list_conversations(
     client_app: CurrentApp,
-    session: Annotated[AsyncSession, Depends(get_session)],
+    session: DbSession,
     user_id: str | None = None,
     kind: ConversationKind | None = None,
     conversation_status: Annotated[ConversationStatus | None, Query(alias="status")] = None,

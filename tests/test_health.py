@@ -12,7 +12,10 @@ async def test_health_ok(client: httpx.AsyncClient) -> None:
     response = await client.get("/health")
 
     assert response.status_code == 200
-    assert response.json() == {"status": "ok", "checks": {"database": "ok", "llm": "ok"}}
+    assert response.json() == {
+        "status": "ok",
+        "checks": {"database": "ok", "redis": "ok", "llm": "ok"},
+    }
 
 
 async def test_health_reports_llm_down(client: httpx.AsyncClient, fake_llm: FakeLlmClient) -> None:
@@ -21,12 +24,14 @@ async def test_health_reports_llm_down(client: httpx.AsyncClient, fake_llm: Fake
     response = await client.get("/health")
 
     assert response.status_code == 503
-    assert response.json()["checks"] == {"database": "ok", "llm": "error"}
+    assert response.json()["checks"] == {"database": "ok", "redis": "ok", "llm": "error"}
 
 
-async def test_health_reports_database_down() -> None:
+async def test_health_reports_database_and_redis_down() -> None:
     settings = Settings(
-        _env_file=None, database_url="postgresql+asyncpg://nobody:x@127.0.0.1:1/none"
+        _env_file=None,
+        database_url="postgresql+asyncpg://nobody:x@127.0.0.1:1/none",
+        redis_url="redis://127.0.0.1:1/0",
     )
     app = create_app(settings, llm=FakeLlmClient())
     async with app.router.lifespan_context(app):
@@ -35,4 +40,4 @@ async def test_health_reports_database_down() -> None:
             response = await http.get("/health")
 
     assert response.status_code == 503
-    assert response.json()["checks"] == {"database": "error", "llm": "ok"}
+    assert response.json()["checks"] == {"database": "error", "redis": "error", "llm": "ok"}

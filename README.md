@@ -14,7 +14,14 @@ docker compose up -d --build
 docker compose exec ollama-nvidia ollama pull qwen3:8b
 docker compose exec ollama-nvidia ollama pull nomic-embed-text
 curl http://localhost:8000/health
-docker compose run --rm api python -m app.cli create-app --slug mi-app --name "Mi App"
+docker compose run --rm api python -m app.cli create-app --slug mi-app --name "Mi App" \
+  --allowed-origin https://mi-app.com --webhook-url https://mi-app.com/support/webhook
+```
+
+En tu app:
+
+```html
+<script src="https://soporte.midominio.com/widget.js" data-token-endpoint="/support/token" defer></script>
 ```
 
 ## Desarrollo
@@ -33,4 +40,6 @@ uv run pytest -q
 - [Conversaciones, prompt y escalado](docs/conversaciones.md)
 - [Webhooks](docs/webhooks.md)
 - [API administrativa](docs/api-admin.md)
+- [API del widget (JWT, SSE, CORS, rate limit)](docs/api-widget.md)
+- [Widget embebible](docs/widget.md)
 - [Despliegue](docs/despliegue.md)

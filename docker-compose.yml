@@ -1,8 +1,8 @@
 name: support-bot
 
 # `migrate` aplica las migraciones y termina; `api` y `worker` arrancan después.
-# Solo `api` publica un puerto. PostgreSQL y Ollama solo son accesibles desde la
-# red interna de Docker. El perfil de Ollama (cpu, nvidia, amd o vulkan) se elige
+# Solo `api` publica un puerto. PostgreSQL, Redis y Ollama solo son accesibles desde
+# la red interna de Docker. El perfil de Ollama (cpu, nvidia, amd o vulkan) se elige
 # con COMPOSE_PROFILES en `.env`.
 
 x-ollama: &ollama
@@ -22,6 +22,7 @@ x-service: &service
   env_file: .env
   environment:
     DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    REDIS_URL: redis://redis:6379/0
   networks: [backend]
 
 services:
@@ -42,6 +43,8 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+      redis:
+        condition: service_healthy
     restart: unless-stopped
 
   worker:
@@ -62,6 +65,16 @@ services:
       - postgres:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      retries: 10
+    networks: [backend]
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]  # solo contadores efímeros
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       retries: 10
     networks: [backend]

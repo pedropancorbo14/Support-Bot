@@ -6,9 +6,9 @@ import uuid
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Annotated, Any
+from typing import Any
 
-from fastapi import Depends, Request
+from fastapi import Request
 from sqlalchemy import any_, case, not_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,7 +23,7 @@ from app.chat.prompt import (
     transcript,
 )
 from app.config import Settings
-from app.db import get_session
+from app.db import DbSession
 from app.llm import LlmClient, LlmError, Usage
 from app.models import (
     ClientApp,
@@ -128,14 +128,47 @@ class ChatService:
         await self._session.commit()
         return conversation
 
-    async def messages(self, conversation: Conversation) -> list[Message]:
+    async def get_user_conversation(
+        self, app_id: int, user_id: str, conversation_id: uuid.UUID
+    ) -> Conversation:
+        """Como `get_conversation`, pero además exige que sea del usuario indicado."""
+        conversation = await self.get_conversation(app_id, conversation_id)
+        if conversation.external_user_id != user_id:
+            raise LookupError(conversation_id)
+        return conversation
+
+    async def messages(self, conversation: Conversation, after_id: int = 0) -> list[Message]:
         return list(
             await self._session.scalars(
                 select(Message)
-                .where(Message.conversation_id == conversation.id)
+                .where(Message.conversation_id == conversation.id, Message.id > after_id)
                 .order_by(Message.id)
+                .execution_options(populate_existing=True)
             )
         )
+
+    async def refresh(self, conversation: Conversation) -> None:
+        """Relee el estado de la conversación (lo puede cambiar otra petición)."""
+        await self._session.refresh(conversation)
+
+    async def rate(self, app_id: int, user_id: str, message_id: int, rating: int) -> None:
+        """Valoración 👍 (1) / 👎 (-1) de una respuesta del bot. Se puede cambiar."""
+        if rating not in (1, -1):
+            raise ValueError("La valoración debe ser 1 o -1")
+        message = await self._session.scalar(
+            select(Message)
+            .join(Conversation, Conversation.id == Message.conversation_id)
+            .where(
+                Message.id == message_id,
+                Message.role == MessageRole.ASSISTANT,
+                Conversation.app_id == app_id,
+                Conversation.external_user_id == user_id,
+            )
+        )
+        if message is None:
+            raise LookupError(message_id)
+        message.rating = rating
+        await self._session.commit()
 
     # -- Bot ------------------------------------------------------------------------------
 
@@ -386,9 +419,7 @@ class ChatService:
         return f"{self._settings.public_base_url.rstrip('/')}/admin/conversations/{conversation_id}"
 
 
-def get_chat_service(
-    request: Request, session: Annotated[AsyncSession, Depends(get_session)]
-) -> ChatService:
+def get_chat_service(request: Request, session: DbSession) -> ChatService:
     state = request.app.state
     return ChatService(session, state.llm, state.settings, state.system_prompt)
 

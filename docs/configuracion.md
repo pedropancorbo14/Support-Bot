@@ -43,6 +43,16 @@ La referencia comentada está en `.env.example`.
 | `WEBHOOK_MAX_ATTEMPTS` | `8` | Intentos antes de marcar un webhook como `failed`. |
 | `WEBHOOK_RETRY_BASE_SECONDS` | `30` | Espera tras el primer fallo. Se duplica en cada intento, con un máximo de 1 h. |
 
+| `REDIS_URL` | `redis://localhost:6379/0` | Redis para el rate limit. Compose lo fija a `redis://redis:6379/0`. |
+| `JWT_MAX_TTL_SECONDS` | `900` | Vida máxima aceptada del JWT del usuario (`exp − iat`). |
+| `JWT_LEEWAY_SECONDS` | `30` | Desfase de reloj tolerado al validar `exp`/`iat`. |
+| `RATE_LIMIT_USER_PER_MINUTE` | `30` | Peticiones por minuto a `/v1` por usuario. |
+| `RATE_LIMIT_IP_PER_MINUTE` | `120` | Peticiones por minuto a `/v1` por IP. |
+| `CORS_CACHE_SECONDS` | `30` | Segundos que se cachean los orígenes permitidos de las apps. |
+| `WIDGET_POLL_INTERVAL` | `2` | Frecuencia con la que el stream de eventos busca mensajes del agente. |
+| `SSE_HEARTBEAT_SECONDS` | `15` | Intervalo del latido (`: ping`) de los streams SSE. |
+| `FORWARDED_ALLOW_IPS` | `127.0.0.1` | La lee uvicorn: IPs del proxy de las que se acepta `X-Forwarded-For`. |
+
 ### Por qué `num_ctx` va por variable de entorno de Ollama
 
 La API compatible con OpenAI no tiene un parámetro para el tamaño de contexto, así que se

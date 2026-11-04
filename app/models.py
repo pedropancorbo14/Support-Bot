@@ -6,9 +6,11 @@ from typing import Any
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     BigInteger,
+    CheckConstraint,
     DateTime,
     ForeignKey,
     Index,
+    SmallInteger,
     String,
     Text,
     UniqueConstraint,
@@ -36,6 +38,10 @@ class ClientApp(Base):
     webhook_url: Mapped[str | None] = mapped_column(String(2000))
     # En claro porque hace falta para firmar (HMAC); solo se muestra al crearlo.
     webhook_secret: Mapped[str | None] = mapped_column(String(100))
+    # Secreto compartido con la app para firmar los JWT de sus usuarios (HS256).
+    jwt_secret: Mapped[str] = mapped_column(String(100))
+    # Orígenes desde los que se puede usar el widget (CORS), p. ej. https://app.com
+    allowed_origins: Mapped[list[str]] = mapped_column(ARRAY(String(255)), default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -148,6 +154,7 @@ class Conversation(Base):
 
 class Message(Base):
     __tablename__ = "messages"
+    __table_args__ = (CheckConstraint("rating IN (-1, 1)", name="ck_messages_rating"),)
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     conversation_id: Mapped[uuid.UUID] = mapped_column(
@@ -164,6 +171,7 @@ class Message(Base):
     # [{"chunk_id", "document", "section", "score"}]
     retrieved_chunks: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB)
     flags: Mapped[list[str]] = mapped_column(ARRAY(String(20)), default=list)
+    rating: Mapped[int | None] = mapped_column(SmallInteger)  # 1 = 👍, -1 = 👎
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     conversation: Mapped[Conversation] = relationship(back_populates="messages")
