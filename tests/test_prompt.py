@@ -68,11 +68,11 @@ def test_system_prompt_placeholders_comments_and_other_braces(tmp_path: Path) ->
 
 def test_system_prompt_reloads_when_file_changes(tmp_path: Path) -> None:
     path = tmp_path / "system.md"
-    path.write_text("Versión 1")
+    path.write_text("Versión 1", encoding="utf-8")
     prompt = SystemPrompt(path)
     assert prompt.template == "Versión 1"
 
-    path.write_text("Versión 2")
+    path.write_text("Versión 2", encoding="utf-8")
     stat = path.stat()
     os.utime(path, (stat.st_atime, stat.st_mtime + 10))
 
@@ -82,7 +82,7 @@ def test_system_prompt_reloads_when_file_changes(tmp_path: Path) -> None:
 def test_missing_or_comment_only_prompt_renders_empty(tmp_path: Path) -> None:
     assert SystemPrompt(tmp_path / "no-existe.md").template == ""
     path = tmp_path / "system.md"
-    path.write_text("<!-- pendiente -->")
+    path.write_text("<!-- pendiente -->", encoding="utf-8")
     assert SystemPrompt(path).template == ""
 
 

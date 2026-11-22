@@ -34,7 +34,7 @@ USER = EndUser(user_id="u-42", name="Ana", plan="pro", locale="es-ES")
 @pytest.fixture
 def system_prompt(tmp_path: Path) -> SystemPrompt:
     path = tmp_path / "system.md"
-    path.write_text("Eres el asistente de soporte de {app_name}.")
+    path.write_text("Eres el asistente de soporte de {app_name}.", encoding="utf-8")
     return SystemPrompt(path)
 
 

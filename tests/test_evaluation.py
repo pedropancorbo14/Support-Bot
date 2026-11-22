@@ -64,9 +64,9 @@ async def test_classify_and_normalize() -> None:
 
 async def test_load_cases_validates(tmp_path: Path) -> None:
     good = tmp_path / "good.toml"
-    good.write_text(CASES)
+    good.write_text(CASES, encoding="utf-8")
     bad = tmp_path / "bad.toml"
-    bad.write_text('[[case]]\nquestion = "x"\nexpected = "quizás"\n')
+    bad.write_text('[[case]]\nquestion = "x"\nexpected = "quizás"\n', encoding="utf-8")
 
     cases, markers = load_cases(good)
 
@@ -109,7 +109,7 @@ async def test_evaluate_command_runs_cases_without_leaving_traces(
     await session.commit()
     await embed_pending_chunks(sessionmaker, FakeLlmClient(), settings)
     cases = tmp_path / "cases.toml"
-    cases.write_text(CASES)
+    cases.write_text(CASES, encoding="utf-8")
     report = tmp_path / "report.json"
     llm = FakeLlmClient(
         [
@@ -127,7 +127,7 @@ async def test_evaluate_command_runs_cases_without_leaving_traces(
     )
 
     output = capsys.readouterr().out
-    data = json.loads(report.read_text())
+    data = json.loads(report.read_text(encoding="utf-8"))
     assert code == 0
     assert data["summary"]["correct"] == 3
     assert data["summary"]["escalations"] == {"correct": 1, "unexpected": 0, "missed": 0}
@@ -150,7 +150,7 @@ async def test_evaluate_command_runs_cases_without_leaving_traces(
 
 async def test_min_accuracy_exit_code(sessionmaker, demo_app, settings, tmp_path: Path) -> None:
     cases = tmp_path / "cases.toml"
-    cases.write_text('[[case]]\nquestion = "x"\nexpected = "escalate"\n')
+    cases.write_text('[[case]]\nquestion = "x"\nexpected = "escalate"\n', encoding="utf-8")
 
     code = await cli.run(
         ["evaluate", "--app", "demo", "--cases", str(cases), "--min-accuracy", "0.9"],

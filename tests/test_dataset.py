@@ -22,7 +22,7 @@ async def collect(events) -> list:
 @pytest.fixture
 def prompt(tmp_path: Path) -> SystemPrompt:
     path = tmp_path / "system.md"
-    path.write_text("Eres el asistente de {app_name}.")
+    path.write_text("Eres el asistente de {app_name}.", encoding="utf-8")
     return SystemPrompt(path)
 
 
@@ -112,5 +112,5 @@ async def test_cli_export(sessionmaker, rated, settings, tmp_path: Path, capsys)
     code = await cli.run(["export-dataset", "--app", "demo", "--output", str(target)], settings)
 
     assert code == 0
-    assert len(target.read_text().splitlines()) == 2
+    assert len(target.read_text(encoding="utf-8").splitlines()) == 2
     assert "2 ejemplos exportados" in capsys.readouterr().out

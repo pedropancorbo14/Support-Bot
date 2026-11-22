@@ -34,8 +34,10 @@ async def test_create_app_rejects_duplicate_slug(sessionmaker, demo_app, setting
 
 async def test_ingest_folder(sessionmaker, demo_app, settings, tmp_path: Path, capsys) -> None:
     (tmp_path / "guias").mkdir()
-    (tmp_path / "guias" / "pagos.md").write_text("# Cómo pagar\n\n## Tarjeta\n\nVisa.")
-    (tmp_path / "preguntas-frecuentes.txt").write_text("¿Horario? De 9 a 18.")
+    (tmp_path / "guias" / "pagos.md").write_text(
+        "# Cómo pagar\n\n## Tarjeta\n\nVisa.", encoding="utf-8"
+    )
+    (tmp_path / "preguntas-frecuentes.txt").write_text("¿Horario? De 9 a 18.", encoding="utf-8")
     (tmp_path / "manual.pdf").write_bytes(b"%PDF")  # formato no soportado: se ignora
 
     code = await cli.run(["ingest", "--app", "demo", str(tmp_path)], settings)
